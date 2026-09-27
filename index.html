@@ -1,0 +1,1094 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Planet Jumping</title>
+<link rel="icon" href="data:,">
+<meta name="description" content="Jump from Mars to Earth to Venus through a tilting portal window.">
+<style>
+@font-face{font-family:'SF Pro';src:local('SF Pro Display Regular'),local('SFProDisplay-Regular'),local('SF Pro Text Regular'),local('SFProText-Regular'),url('fonts/SF-Pro-Display-Regular.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'SF Pro';src:local('SF Pro Display Bold'),local('SFProDisplay-Bold'),local('SF Pro Text Bold'),local('SFProText-Bold'),url('fonts/SF-Pro-Display-Bold.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:'SF Pro Thin';src:local('SF Pro Display Thin'),local('SFProDisplay-Thin'),url('fonts/SF-Pro-Display-Thin.woff2') format('woff2');font-weight:100;font-style:normal;font-display:swap}
+@font-face{font-family:'Aalto';src:local('Aalto'),local('Aalto Regular'),local('Aalto-Regular'),url('fonts/Aalto-Regular.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+
+:root{font-family:'SF Pro',Arial,sans-serif;color:#fff;background:#090807;font-synthesis:none}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden}
+html,body,button,a,.portal{cursor:none!important}
+button{font:inherit}
+
+.experience{position:relative;width:100%;height:100%;min-height:540px;overflow:hidden;background:#0a0908}
+.backgrounds,.background,.shade,.transition-layer,.transition-layer video{position:absolute;inset:0;width:100%;height:100%}
+.background{object-fit:cover;opacity:0;transition:opacity .8s ease}
+.background.is-visible{opacity:1}
+.shade{z-index:1;background:linear-gradient(to bottom,transparent 52%,rgba(0,0,0,.88) 100%);pointer-events:none}
+.chrome{position:absolute;z-index:4;transition:opacity .45s ease,filter .45s ease}
+.experience.is-transitioning .chrome{opacity:0;filter:blur(8px);pointer-events:none}
+
+/* Preloader */
+.preloader{position:absolute;inset:0;z-index:20;background:#000;overflow:hidden}
+.preloader video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.preloader-shade{position:absolute;inset:auto 0 0;height:35%;background:linear-gradient(to bottom,transparent,#000)}
+.preloader.is-background{z-index:0}
+.preloader.is-background .preloader-shade{opacity:0}
+.floating-logo{position:fixed;z-index:22;left:50%;top:50%;width:59px;height:58px;transform:translate(-50%,-50%);
+  will-change:left,top,width,height,transform;
+  transition:left 2s cubic-bezier(.16,1,.3,1),top 2s cubic-bezier(.16,1,.3,1),width 2s cubic-bezier(.16,1,.3,1),height 2s cubic-bezier(.16,1,.3,1),transform 2s cubic-bezier(.16,1,.3,1)}
+.floating-logo.is-docked{left:clamp(18px,1.95vw,28px);top:clamp(18px,3.1vh,28px);width:37px;height:36px;transform:none}
+.floating-logo.is-settled{z-index:5}
+.preloader-count{position:fixed;z-index:22;left:50%;bottom:clamp(22px,3.1vh,28px);display:flex;align-items:flex-end;gap:4px;
+  transform:translateX(-50%);font-family:'SF Pro',Arial,sans-serif;line-height:1}
+.preloader-count>span:first-child{font-family:'SF Pro Thin','SF Pro',Arial,sans-serif;font-size:64px;font-weight:100}
+.preloader-count .percent{font-size:24px;padding-bottom:4px}
+.preloader-count.is-leaving{animation:preload-count-out .75s cubic-bezier(.22,1,.36,1) both}
+body:not(.preload-complete) .custom-cursor{opacity:0!important}
+
+/* Header */
+.header{left:clamp(18px,1.95vw,28px);right:clamp(18px,1.95vw,28px);top:clamp(18px,3.1vh,28px);display:flex;justify-content:space-between;align-items:center}
+.header-actions{margin-left:auto;display:flex;align-items:center}
+.nav{display:flex;align-items:center;height:42px;padding:4px 5px;border:1px solid rgba(255,255,255,.45);
+  background:rgba(255,255,255,.1);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-radius:999px}
+.nav a{color:#fff;text-decoration:none;padding:8px 19px;border-radius:999px;line-height:1}
+.nav a.active{background:#fff;color:#000}
+.menu{height:42px;padding:0 20px;border:0;border-radius:999px;background:#fff;color:#000;cursor:pointer}
+
+/* Planet list */
+.planet-list{left:clamp(18px,1.95vw,28px);top:50%;transform:translateY(-43%);display:flex;flex-direction:column;gap:6px;font-size:16px}
+.planet-item{display:flex;align-items:center;min-height:20px;padding:0;border:0;background:none;color:inherit;text-align:left}
+.planet-item:focus-visible,.portal:focus-visible{outline:1px solid rgba(255,255,255,.8);outline-offset:4px}
+.planet-item.active{font-size:18px;font-weight:700;gap:8px}
+.planet-item.active:before{content:'';width:16px;height:16px;border-radius:50%;background:#fff}
+
+/* Photo credit for generated flights */
+.photo-credit{right:clamp(18px,1.95vw,28px);top:calc(clamp(18px,3.1vh,28px) + 54px);max-width:min(460px,70vw);margin:0;
+  font-size:11px;line-height:1.45;text-align:right;white-space:pre-line;opacity:.6}
+
+/* Portal — the real media is invisible; #portal-canvas samples it */
+.portal-wrap{left:50%;top:50%;width:min(320px,31vw);transform:translate(-50%,-54%);perspective:none}
+.portal-heading{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:16px;opacity:0}
+.portal-heading strong{font-size:18px;margin-left:8px}
+.portal{position:relative;display:block;width:100%;aspect-ratio:320/350;padding:0;overflow:visible;border:0;
+  border-radius:90px;background:transparent;cursor:pointer;box-shadow:none;transform:none!important}
+.portal video,.portal img{visibility:hidden;position:absolute;width:1px;height:1px;pointer-events:none}
+.portal-canvas{position:fixed;inset:0;z-index:3;width:100%;height:100%;pointer-events:none}
+
+/* Planet content */
+.planet-content{left:clamp(28px,4vw,58px);right:clamp(28px,3vw,44px);bottom:clamp(24px,3vh,30px);
+  display:flex;justify-content:space-between;align-items:flex-end;gap:40px}
+.planet-content h1{--title-x:-32px;font-family:Aalto,'Arial Narrow',sans-serif;font-size:clamp(128px,21.8vw,314px);
+  font-weight:400;line-height:.72;margin:0 0 -.04em;letter-spacing:0;transform:translateX(var(--title-x));opacity:0;min-width:0}
+.planet-content dl{width:min(447px,34vw);margin:0;font-size:16px;flex-shrink:0}
+.fact{display:grid;grid-template-columns:138px 1fr;gap:18px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.48);opacity:0}
+.fact:last-child{border-bottom:0}
+.fact dt{font-weight:700}
+.fact dd{margin:0}
+
+/* Misc */
+.transition-layer{display:none}
+.scene-canvas{position:absolute;inset:0;z-index:0;width:100%;height:100%;visibility:hidden;pointer-events:none}
+.scene-canvas.is-frozen{visibility:visible}
+.loading{position:absolute;z-index:12;left:50%;bottom:30px;transform:translateX(-50%);opacity:0;
+  font-size:12px;letter-spacing:.14em;text-transform:uppercase;transition:opacity .2s}
+.experience.is-loading .loading{opacity:.8}
+.experience.is-transitioning .header,.experience.is-transitioning .planet-list{opacity:1;filter:none;pointer-events:auto}
+.experience.is-transitioning .shade{opacity:1}
+.experience.is-committing .background{transition:none!important}
+
+/* Custom cursor */
+.custom-cursor{display:block;position:fixed;left:0;top:0;z-index:100;width:1px;height:1px;pointer-events:none;opacity:0;transition:opacity .2s ease}
+.custom-cursor.is-visible{opacity:1}
+.cursor-dot,.cursor-orbit{position:absolute;left:0;top:0;border-radius:50%;transform:translate(-50%,-50%)}
+.cursor-dot{width:12px;height:12px;background:#fff}
+.cursor-orbit{width:36px;height:36px;border:1px solid #fff;background:rgba(255,255,255,.4);transition:transform .3s cubic-bezier(.22,1,.36,1)}
+.custom-cursor.is-enter .cursor-orbit,.custom-cursor.is-hover .cursor-orbit{transform:translate(-50%,-50%) scale(1.16)}
+.cursor-label{position:absolute;top:26px;left:0;transform:translateX(-50%) translateY(-4px);font:16px/1.2 'SF Pro',Arial,sans-serif;
+  white-space:nowrap;opacity:0;transition:opacity .2s ease,transform .3s cubic-bezier(.22,1,.36,1)}
+.custom-cursor.is-enter .cursor-label{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* Entrance / switch animations */
+body:not(.intro-ready) .header,.planet-list,.planet-content h1,.planet-content .fact{opacity:0}
+.intro-ready .header{animation:reveal-down .9s cubic-bezier(.22,1,.36,1) .1s both}
+.intro-ready .planet-list{animation:reveal-side .9s cubic-bezier(.22,1,.36,1) .65s both}
+.content-revealing h1{animation:title-rise 1.05s cubic-bezier(.16,1,.3,1) both}
+.content-revealing .fact{animation:fact-rise .72s cubic-bezier(.22,1,.36,1) both}
+.content-revealing .fact:nth-child(1){animation-delay:.52s}
+.content-revealing .fact:nth-child(2){animation-delay:.68s}
+.content-revealing .fact:nth-child(3){animation-delay:.84s}
+.content-revealing .fact:nth-child(4){animation-delay:1s}
+.mask-revealing .portal-heading{animation:portal-caption .85s cubic-bezier(.22,1,.36,1) both}
+.planet-list.is-switching .planet-item{animation:menu-row .58s cubic-bezier(.22,1,.36,1) both}
+.planet-list.is-switching .planet-item:nth-child(1){animation-delay:.02s}
+.planet-list.is-switching .planet-item:nth-child(2){animation-delay:.05s}
+.planet-list.is-switching .planet-item:nth-child(3){animation-delay:.08s}
+.planet-list.is-switching .planet-item:nth-child(4){animation-delay:.11s}
+.planet-list.is-switching .planet-item:nth-child(5){animation-delay:.14s}
+.planet-list.is-switching .planet-item:nth-child(6){animation-delay:.17s}
+.planet-list.is-switching .planet-item:nth-child(7){animation-delay:.2s}
+.planet-list.is-switching .planet-item:nth-child(8){animation-delay:.23s}
+.planet-list.is-switching .planet-item.active:before{animation:active-dot .55s cubic-bezier(.22,1,.36,1) .18s both}
+
+@keyframes preload-count-out{to{opacity:0;filter:blur(7px);transform:translate(-50%,-34px)}}
+@keyframes reveal-down{from{opacity:0;filter:blur(8px);transform:translateY(-18px)}to{opacity:1;filter:blur(0);transform:translateY(0)}}
+@keyframes reveal-side{from{opacity:0;filter:blur(8px);transform:translate(-20px,-43%)}to{opacity:1;filter:blur(0);transform:translate(0,-43%)}}
+@keyframes title-rise{from{opacity:0;filter:blur(12px);transform:translate(var(--title-x),42px)}to{opacity:1;filter:blur(0);transform:translate(var(--title-x),0)}}
+@keyframes fact-rise{from{opacity:0;filter:blur(7px);transform:translateY(18px)}to{opacity:1;filter:blur(0);transform:translateY(0)}}
+@keyframes portal-caption{from{opacity:0;filter:blur(7px);transform:translateY(22px)}to{opacity:1;filter:blur(0);transform:translateY(0)}}
+@keyframes menu-row{from{opacity:.35;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+@keyframes active-dot{from{opacity:0;transform:scale(0)}to{opacity:1;transform:scale(1)}}
+
+/* Responsive */
+@media(max-width:900px){
+  .nav{display:none}
+  .portal-wrap{width:min(300px,48vw)}
+  .planet-content h1{--title-x:-16px;font-size:clamp(105px,24vw,190px)}
+  .planet-content dl{width:43vw}
+  .fact{grid-template-columns:110px 1fr}
+  .planet-list{font-size:14px}
+  .planet-item.active{font-size:16px}
+}
+@media(max-width:640px){
+  .experience{min-height:600px}
+  .planet-list{display:none}
+  .portal-wrap{top:44%;width:min(260px,66vw)}
+  .planet-content{left:18px;right:18px;bottom:18px;display:block}
+  .planet-content h1{--title-x:0px;font-size:clamp(98px,30vw,160px);margin-bottom:20px}
+  .planet-content dl{width:100%;font-size:13px}
+  .fact{grid-template-columns:92px 1fr;padding:5px 0}
+  .portal-heading{font-size:14px}
+  .portal-heading strong{font-size:16px}
+  .menu{height:38px}
+  .portal{border-radius:70px}
+}
+@media(prefers-reduced-motion:reduce){
+  *{transition-duration:.01ms!important}
+  .portal{transform:none!important}
+}
+</style>
+</head>
+<body>
+<main class="experience" data-planet="mars">
+  <div class="backgrounds" aria-hidden="true">
+    <video id="mars-background" class="background is-visible" src="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/3c83091e-4046-4fd6-adbb-2edb728be79a.mp4" muted playsinline preload="none"></video>
+    <video id="earth-background" class="background" src="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/fc3ded42-e845-41f3-a830-5cab512d79cd.mp4" muted playsinline preload="none"></video>
+    <video id="venus-background" class="background" src="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/b30f64d9-1637-477a-83df-d0fc6461a422.mp4" muted playsinline preload="none"></video>
+  </div>
+
+  <div class="preloader" id="preloader" aria-label="Loading Mars">
+    <video id="preloader-video" src="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/5fc5651c-3b5d-4171-b507-87f7e635d1b4.mp4" muted playsinline preload="auto"></video>
+    <div class="preloader-shade"></div>
+  </div>
+  <img class="floating-logo" id="floating-logo" src="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/eb7e0f53-50cd-4af5-abc4-8b9a52cdc01b.svg" alt="Ubernatural">
+  <div class="preloader-count" id="preloader-count" aria-live="polite">
+    <span id="preloader-value">0</span><span class="percent">%</span>
+  </div>
+
+  <canvas id="scene-canvas" class="scene-canvas" aria-hidden="true"></canvas>
+  <div class="shade" aria-hidden="true"></div>
+
+  <header class="header chrome">
+    <div class="header-actions">
+      <nav class="nav" aria-label="Primary navigation">
+        <a class="active" href="#about">About</a><a href="#explore">Explore</a><a href="#planets">Planets</a>
+      </nav>
+      <button class="menu" type="button">Menu</button>
+    </div>
+  </header>
+  <p class="photo-credit chrome" id="photo-credit" hidden></p>
+
+  <aside class="planet-list chrome" aria-label="Planets"></aside>
+
+  <canvas id="portal-canvas" class="portal-canvas" aria-hidden="true"></canvas>
+  <section class="portal-wrap chrome" aria-label="Next destination">
+    <div class="portal-heading">
+      <span>Next:</span>
+      <span><span id="next-number">[03]</span> <strong id="next-name">Earth</strong></span>
+    </div>
+    <button class="portal" id="portal" type="button" aria-label="Travel to Earth">
+      <video id="portal-video" src="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/fc3ded42-e845-41f3-a830-5cab512d79cd.mp4" muted playsinline preload="none"></video>
+      <img id="portal-image" src="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/d6fb8b6b-c15e-4aaa-9cf7-45bbb5e33372.jpg" alt="Mercury">
+    </button>
+  </section>
+
+  <section class="planet-content chrome" aria-live="polite">
+    <h1 id="planet-title">MARS</h1>
+    <dl id="facts"></dl>
+  </section>
+
+  <div class="transition-layer" aria-hidden="true"><video id="transition-video" muted playsinline preload="auto"></video></div>
+  <div class="loading" aria-hidden="true">Preparing orbit…</div>
+  <div class="custom-cursor" aria-hidden="true">
+    <span class="cursor-orbit"></span><span class="cursor-dot"></span><span class="cursor-label">Enter</span>
+  </div>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  const BASE = 'https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P';
+  const TO_EARTH = `${BASE}/fc3ded42-e845-41f3-a830-5cab512d79cd.mp4`;
+  const TO_VENUS = `${BASE}/b30f64d9-1637-477a-83df-d0fc6461a422.mp4`;
+  const TO_MARS = `${BASE}/5fc5651c-3b5d-4171-b507-87f7e635d1b4.mp4`;
+  const MERCURY = `${BASE}/d6fb8b6b-c15e-4aaa-9cf7-45bbb5e33372.jpg`;
+  // Planets without a filmed approach fly in from these photos, cropped to the planet and served
+  // next to this page (credited on screen while in use). Sources: ESA/Hubble "Jupiter's Colourful
+  // Palette" (2019), NASA PIA11141 (Cassini), PIA18182 and PIA01492 (Voyager 2).
+  const JUPITER_PHOTO = 'assets/jupiter.jpg';
+  const SATURN_PHOTO = 'assets/saturn.jpg';
+  const URANUS_PHOTO = 'assets/uranus.jpg';
+  const NEPTUNE_PHOTO = 'assets/neptune.jpg';
+
+  const planets = ['Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
+  const keys = planets.map(name => name.toLowerCase());
+
+  const facts = {
+    mercury: [
+      ['Distance:', 'About 57.9 million km from the Sun (0.39 astronomical units).'],
+      ['Year:', 'One Mercurian year lasts just 88 Earth days.'],
+      ['Temperature:', 'Up to 430 °C by day, falling to -180 °C at night.'],
+      ['Atmosphere:', 'Almost none — a thin exosphere of oxygen, sodium, hydrogen and helium.']
+    ],
+    venus: [
+      ['Distance:', '108.2 million km from the Sun.'],
+      ['Year:', '225 Earth days.'],
+      ['Temperature:', 'Around 465 °C — the hottest planet in the Solar System.'],
+      ['Atmosphere:', 'Extremely dense, mostly carbon dioxide, with clouds of sulfuric acid.']
+    ],
+    earth: [
+      ['Distance:', '149.6 million km from the Sun.'],
+      ['Year:', '365.25 Earth days.'],
+      ['Temperature:', 'Average surface temperature around 15 °C.'],
+      ['Atmosphere:', 'Mostly nitrogen and oxygen, supporting life and liquid water.']
+    ],
+    mars: [
+      ['Distance:', 'About 228 million km (1.5 astronomical units).'],
+      ['Year:', 'One Martian year is equal to 687 Earth days.'],
+      ['Temperature:', 'Around -60 °C, dropping to -125 °C at the poles in winter.'],
+      ['Atmosphere:', 'Very thin, consisting of 95% carbon dioxide, with frequent dust storms.']
+    ],
+    jupiter: [
+      ['Distance:', 'About 778 million km from the Sun (5.2 astronomical units).'],
+      ['Year:', 'One Jovian year lasts about 11.9 Earth years.'],
+      ['Temperature:', 'Around -110 °C at the cloud tops.'],
+      ['Atmosphere:', 'Mostly hydrogen and helium, with ammonia cloud bands and the Great Red Spot storm.']
+    ],
+    saturn: [
+      ['Distance:', 'About 1.43 billion km from the Sun (9.5 astronomical units).'],
+      ['Year:', 'One Saturnian year lasts about 29.5 Earth years.'],
+      ['Temperature:', 'Around -140 °C at the cloud tops.'],
+      ['Atmosphere:', 'Mostly hydrogen and helium, circled by rings of ice and rock.']
+    ],
+    uranus: [
+      ['Distance:', 'About 2.9 billion km from the Sun (19.2 astronomical units).'],
+      ['Year:', 'One Uranian year lasts about 84 Earth years.'],
+      ['Temperature:', 'Around -195 °C, with lows near -224 °C — the coldest in the Solar System.'],
+      ['Atmosphere:', 'Hydrogen, helium and methane; the methane gives it its cyan color.']
+    ],
+    neptune: [
+      ['Distance:', 'About 4.5 billion km from the Sun (30 astronomical units).'],
+      ['Year:', 'One Neptunian year lasts about 165 Earth years.'],
+      ['Temperature:', 'Around -200 °C at the cloud tops.'],
+      ['Atmosphere:', 'Hydrogen, helium and methane, with the fastest winds in the Solar System.']
+    ]
+  };
+
+  // How each planet is reached.
+  //   video:  a filmed approach, played through the portal (its first frame is the portal preview).
+  //   flight: a camera move rendered on canvas from a still.
+  //     frame: the still is already a framed shot; the camera pushes `zoom`x into `anchor` (photo px)
+  //            and moves it to `at` (share of the viewport).
+  //     otherwise the still is a planet photo on black: cx/cy/r = disc centre and radius in photo px,
+  //            `top` = centre-to-top-limb distance (0 tracks the centre instead), `rotate` levels the
+  //            cloud bands (degrees clockwise), `far` = planet radius in the portal (share of its
+  //            width), `near` = arrival radius as [share of viewport width, minimum share of height],
+  //            `at` = where the tracked point lands on arrival, `glow` = atmosphere rim colour.
+  const approaches = {
+    mercury: { flight: { src: MERCURY, frame: true, anchor: [960, 478], zoom: 1.7, at: [.5, .3] } },
+    venus: { video: TO_VENUS },
+    earth: { video: TO_EARTH },
+    mars: { video: TO_MARS },
+    jupiter: { flight: {
+      src: JUPITER_PHOTO, cx: 1140, cy: 1140, r: 1095, top: 1055, rotate: 38,
+      far: .34, near: [.58, .45], at: [.5, .34], glow: '255,214,170',
+      credit: 'Jupiter: ESA/Hubble & NASA, A. Simon, M. H. Wong (CC BY 4.0, cropped)'
+    } },
+    saturn: { flight: {
+      src: SATURN_PHOTO, cx: 2050, cy: 860, r: 828, ry: 766, top: 0, rings: [2030, 840],
+      far: .19, near: [.3, .2], at: [.5, .64], glow: '255,226,180', glowAlpha: .16,
+      credit: 'Saturn: NASA/JPL/Space Science Institute'
+    } },
+    uranus: { flight: {
+      src: URANUS_PHOTO, cx: 740, cy: 740, r: 699, top: 682,
+      far: .33, near: [.75, .5], at: [.5, .34], glow: '160,235,255',
+      credit: 'Uranus: NASA/JPL-Caltech (Voyager 2)'
+    } },
+    neptune: { flight: {
+      src: NEPTUNE_PHOTO, cx: 985, cy: 985, r: 946, top: 946,
+      far: .34, near: [.7, .5], at: [.5, .34], glow: '90,150,255',
+      credit: 'Neptune: NASA/JPL (Voyager 2)'
+    } }
+  };
+
+  const states = {};
+  keys.forEach((key, i) => {
+    states[key] = {
+      name: planets[i],
+      number: `[${String(i + 1).padStart(2, '0')}]`,
+      // One step sunward per jump, wrapping from Mercury back out to Neptune.
+      next: keys[(i + keys.length - 1) % keys.length],
+      background: `${key}-background`,
+      facts: facts[key]
+    };
+  });
+
+  const $ = id => document.getElementById(id);
+  const experience = document.querySelector('.experience');
+  const planetList = document.querySelector('.planet-list');
+  const backgrounds = document.querySelectorAll('.background');
+  const cursor = document.querySelector('.custom-cursor');
+  const title = $('planet-title');
+  const factsEl = $('facts');
+  const nextName = $('next-name');
+  const nextNumber = $('next-number');
+  const credit = $('photo-credit');
+  const portal = $('portal');
+  const portalVideo = $('portal-video');
+  const portalImage = $('portal-image');
+  const portalCanvas = $('portal-canvas');
+  const ctx = portalCanvas.getContext('2d');
+  const sceneCanvas = $('scene-canvas');
+  const sceneCtx = sceneCanvas.getContext('2d', { alpha: false });
+  const preloader = $('preloader');
+  const preloaderVideo = $('preloader-video');
+  const preloaderCount = $('preloader-count');
+  const preloaderValue = $('preloader-value');
+  const logo = $('floating-logo');
+  // Off-screen canvas holding the portal preview of a generated flight.
+  const previewCanvas = document.createElement('canvas');
+  const previewCtx = previewCanvas.getContext('2d', { alpha: false });
+
+  let current = 'mars';
+  let portalTarget = states.mars.next;
+  let busy = true; // released once the intro has finished
+  let rendered = false;
+  let rotX = 0, rotY = 0, targetX = 0, targetY = 0;
+  let expansion = 0, maskScale = 0, canvasOpacity = 1;
+  let transitionActive = false, activeClip = null;
+  let frozen = false, frozenFlight = null;
+  let dpr = 1, portalRadius = 90, portalRect = null, lastFrame = 0;
+  let needsDraw = true; // the portal canvas repaints only when something it shows has changed
+  let pointerX = innerWidth / 2, pointerY = innerHeight / 2, cursorX = pointerX, cursorY = pointerY, cursorSeen = false;
+
+  // ---------- helpers ----------
+  const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const nextFrame = () => new Promise(resolve => requestAnimationFrame(resolve));
+
+  function waitFor(el, events, timeout) {
+    return new Promise(resolve => {
+      let timer = 0;
+      const done = () => {
+        clearTimeout(timer);
+        events.forEach(type => el.removeEventListener(type, done));
+        resolve();
+      };
+      events.forEach(type => el.addEventListener(type, done));
+      if (timeout) timer = setTimeout(done, timeout);
+    });
+  }
+
+  function animateValue(setter, duration) {
+    return new Promise(resolve => {
+      const start = performance.now();
+      setter(0);
+      needsDraw = true;
+      const step = now => {
+        const t = Math.min(1, Math.max(0, now - start) / duration);
+        setter(ease(t));
+        needsDraw = true;
+        if (t < 1) requestAnimationFrame(step);
+        else resolve();
+      };
+      requestAnimationFrame(step);
+    });
+  }
+
+  function retrigger(el, className) {
+    el.classList.remove(className);
+    void el.offsetWidth;
+    el.classList.add(className);
+  }
+
+  const images = new Map(); // src -> decoded <img>
+  const imageLoads = new Map(); // src -> Promise<img | null>
+  function loadImage(src) {
+    if (!imageLoads.has(src)) {
+      const img = new Image();
+      img.decoding = 'async';
+      img.src = src;
+      imageLoads.set(src, img.decode().then(() => {
+        images.set(src, img);
+        return img;
+      }, () => {
+        imageLoads.delete(src); // let the next request try again
+        return null;
+      }));
+    }
+    return imageLoads.get(src);
+  }
+
+  async function prepareMedia(el) {
+    if (el.readyState >= 2) return;
+    await waitFor(el, ['loadeddata', 'error'], 4000);
+    // Some mobile browsers ignore preload and never decode a first frame until play() is called.
+    if (el.readyState < 2 && !el.error) {
+      el.play().then(() => { el.pause(); el.currentTime = 0; }, () => {});
+    }
+  }
+
+  // Shrinks the title only when the word is wider than its slot (e.g. a wider fallback face).
+  function fitTitle() {
+    title.style.fontSize = '';
+    const { scrollWidth, clientWidth } = title;
+    if (scrollWidth > clientWidth + 1) {
+      const size = parseFloat(getComputedStyle(title).fontSize);
+      title.style.fontSize = `${Math.floor(size * (clientWidth - 1) / scrollWidth * 10) / 10}px`;
+    }
+  }
+
+  // ---------- render ----------
+  function render() {
+    const state = states[current];
+    experience.dataset.planet = current;
+    title.textContent = state.name.toUpperCase();
+
+    factsEl.innerHTML = state.facts
+      .map(([key, value]) => `<div class="fact"><dt>${key}</dt><dd>${value}</dd></div>`)
+      .join('');
+    fitTitle();
+    planetList.innerHTML = planets
+      .map((name, i) => {
+        const active = keys[i] === current;
+        return `<button class="planet-item${active ? ' active' : ''}" type="button" data-planet="${keys[i]}"${active ? ' aria-current="true"' : ''}>${name}</button>`;
+      })
+      .join('');
+    if (rendered) retrigger(planetList, 'is-switching');
+    rendered = true;
+
+    backgrounds.forEach(video => video.classList.toggle('is-visible', video.id === state.background));
+
+    portalTarget = state.next;
+    updatePortal();
+  }
+
+  // Points the portal (caption, credit and preview media) at `portalTarget`.
+  function updatePortal() {
+    const target = states[portalTarget];
+    const { video, flight } = approaches[portalTarget];
+    nextName.textContent = target.name;
+    nextNumber.textContent = target.number;
+    portal.setAttribute('aria-label', `Travel to ${target.name}`);
+
+    const credits = [approaches[current].flight?.credit, flight?.credit].filter(Boolean);
+    credit.textContent = [...new Set(credits)].join('\n');
+    credit.hidden = !credits.length;
+
+    portalVideo.hidden = !video;
+    portalImage.hidden = portalTarget !== 'mercury';
+    if (video) {
+      if (portalVideo.src !== video) portalVideo.src = video;
+    } else {
+      if (portalVideo.hasAttribute('src')) {
+        portalVideo.removeAttribute('src');
+        portalVideo.load();
+      }
+      renderPreview();
+      loadImage(flight.src).then(renderPreview);
+    }
+  }
+
+  const portalMedia = () => approaches[portalTarget].video ? portalVideo : previewCanvas;
+
+  function preparePortal() {
+    const { video, flight } = approaches[portalTarget];
+    if (video) return prepareMedia(portalVideo);
+    return Promise.race([loadImage(flight.src), wait(4000)]).then(renderPreview);
+  }
+
+  // ---------- canvas ----------
+  function sizeCanvas(canvas, context) {
+    canvas.width = Math.round(innerWidth * dpr);
+    canvas.height = Math.round(innerHeight * dpr);
+    canvas.style.width = `${innerWidth}px`;
+    canvas.style.height = `${innerHeight}px`;
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  // The clips are 1080p, so going past 1.5 device pixels per CSS pixel only costs fill rate.
+  const MAX_DPR = 1.5;
+
+  function resizeCanvas() {
+    dpr = Math.min(devicePixelRatio || 1, MAX_DPR);
+    sizeCanvas(portalCanvas, ctx);
+    if (!frozen) sizeCanvas(sceneCanvas, sceneCtx);
+    portalRadius = parseFloat(getComputedStyle(portal).borderTopLeftRadius) || 90;
+    measurePortal();
+  }
+
+  function measurePortal() {
+    portalRect = portal.getBoundingClientRect();
+    needsDraw = true;
+  }
+
+  function drawCover(context, media) {
+    const mw = media.videoWidth || media.naturalWidth || media.width;
+    const mh = media.videoHeight || media.naturalHeight || media.height;
+    if (!mw || !mh || (media.tagName === 'VIDEO' && media.readyState < 2)) return;
+    const scale = Math.max(innerWidth / mw, innerHeight / mh);
+    const w = mw * scale, h = mh * scale;
+    context.drawImage(media, (innerWidth - w) / 2, (innerHeight - h) / 2, w, h);
+  }
+
+  function drawShade(context) {
+    const top = innerHeight * .52;
+    const gradient = context.createLinearGradient(0, top, 0, innerHeight);
+    gradient.addColorStop(0, 'rgba(0,0,0,0)');
+    gradient.addColorStop(1, 'rgba(0,0,0,.88)');
+    context.fillStyle = gradient;
+    context.fillRect(0, top, innerWidth, innerHeight - top);
+  }
+
+  const CORNER_STEPS = 10;
+  function roundedRectPoints(w, h, r) {
+    r = Math.max(0, Math.min(r, w / 2, h / 2));
+    const PI = Math.PI;
+    const corners = [
+      [w / 2 - r, -h / 2 + r, -PI / 2, 0],
+      [w / 2 - r, h / 2 - r, 0, PI / 2],
+      [-w / 2 + r, h / 2 - r, PI / 2, PI],
+      [-w / 2 + r, -h / 2 + r, PI, PI * 1.5]
+    ];
+    const points = [];
+    for (const [ox, oy, a0, a1] of corners) {
+      for (let i = 0; i <= CORNER_STEPS; i++) {
+        const a = a0 + (a1 - a0) * i / CORNER_STEPS;
+        points.push([ox + Math.cos(a) * r, oy + Math.sin(a) * r]);
+      }
+    }
+    return points;
+  }
+
+  function draw(now) {
+    requestAnimationFrame(draw);
+    const dt = Math.min(40, lastFrame ? now - lastFrame : 16);
+    lastFrame = now;
+    const k = Math.min(1, dt * .009);
+    const prevX = rotX, prevY = rotY;
+    rotX += (targetX - rotX) * k;
+    rotY += (targetY - rotY) * k;
+    // Snap once the remaining ease is imperceptible so an idle page stops repainting.
+    if (Math.abs(targetX - rotX) < .01) rotX = targetX;
+    if (Math.abs(targetY - rotY) < .01) rotY = targetY;
+    if (rotX !== prevX || rotY !== prevY) needsDraw = true;
+    if (transitionActive && activeClip) activeClip.update(now);
+
+    if (!needsDraw) return;
+    needsDraw = false;
+    paintPortal();
+  }
+
+  function paintMedia(context, media) {
+    context.fillStyle = '#030303';
+    context.fillRect(0, 0, innerWidth, innerHeight);
+    drawCover(context, media);
+  }
+
+  function paintPortal() {
+    const W = innerWidth, H = innerHeight;
+    ctx.clearRect(0, 0, W, H);
+    // Once a clip is frozen its last frame sits on the scene layer underneath.
+    if (transitionActive && activeClip && activeClip.done) return;
+
+    const rect = portalRect;
+    const e = expansion;
+    const rectCx = rect.left + rect.width / 2;
+    const rectCy = rect.top + rect.height / 2;
+    const cx = rectCx + (W / 2 - rectCx) * e;
+    const cy = rectCy + (H / 2 - rectCy) * e;
+    const baseW = rect.width + (W - rect.width) * e;
+    const baseH = rect.height + (H - rect.height) * e;
+    const scale = e ? 1 : maskScale;
+    const w = baseW * scale, h = baseH * scale;
+    const r = portalRadius * (1 - e) * scale;
+    const ax = rotX * (1 - e) * Math.PI / 180;
+    const ay = rotY * (1 - e) * Math.PI / 180;
+    if (w <= 1 || h <= 1) return;
+
+    const cosX = Math.cos(ax), sinX = Math.sin(ax), cosY = Math.cos(ay), sinY = Math.sin(ay);
+    ctx.beginPath();
+    roundedRectPoints(w, h, r).forEach(([x, y], i) => {
+      const z = x * sinY - y * sinX;
+      const p = 850 / (850 + z);
+      const px = cx + x * cosY * p, py = cy + y * cosX * p;
+      if (i) ctx.lineTo(px, py);
+      else ctx.moveTo(px, py);
+    });
+    ctx.closePath();
+
+    ctx.save();
+    ctx.globalAlpha = canvasOpacity;
+    ctx.clip();
+    // Until the clip has a frame, keep showing the portal preview (it is the same first frame).
+    if (transitionActive && activeClip && activeClip.ready()) activeClip.paint(ctx);
+    else paintMedia(ctx, portalMedia());
+    if (transitionActive) drawShade(ctx);
+    ctx.restore();
+  }
+
+  // ---------- generated flights ----------
+  const FLIGHT_MS = 4000;
+
+  const MAX_STARS = 700;
+  const starBuckets = (() => {
+    let seed = 7;
+    const rand = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+    const tints = ['255,255,255', '214,226,255', '255,236,214'];
+    const alphas = [.35, .55, .75, 1];
+    const buckets = new Map();
+    for (let i = 0; i < MAX_STARS; i++) {
+      const width = rand() < .06 ? 2.6 : 1.2;
+      const star = { i, x: rand(), y: rand() };
+      const style = `rgba(${tints[Math.floor(rand() * tints.length)]},${alphas[Math.floor(rand() * alphas.length)]})`;
+      const key = `${style}|${width}`;
+      if (!buckets.has(key)) buckets.set(key, { style, width, stars: [] });
+      buckets.get(key).stars.push(star);
+    }
+    return [...buckets.values()];
+  })();
+
+  // t: eased camera progress, p: raw time progress (drives the speed streaks).
+  function drawStars(c, W, H, t, p) {
+    const count = Math.min(MAX_STARS, Math.round(W * H / 2600));
+    const spread = 1 + .12 * t;
+    // Never exactly zero: zero-length segments are skipped, and a tiny one draws a round dot.
+    const trail = Math.max(.0005, .05 * Math.sin(Math.PI * p));
+    c.lineCap = 'round';
+    for (const bucket of starBuckets) {
+      c.strokeStyle = bucket.style;
+      c.lineWidth = bucket.width;
+      c.beginPath();
+      for (const star of bucket.stars) {
+        if (star.i >= count) continue;
+        const dx = (star.x - .5) * W * spread, dy = (star.y - .5) * H * spread;
+        const x = W / 2 + dx, y = H / 2 + dy;
+        c.moveTo(x - dx * trail, y - dy * trail);
+        c.lineTo(x, y);
+      }
+      c.stroke();
+    }
+  }
+
+  // Mercury: the supplied still is already a framed shot, so the camera pushes into it.
+  function drawFramedPhoto(c, f, img, t, W, H) {
+    const iw = img.naturalWidth, ih = img.naturalHeight;
+    const cover = Math.max(W / iw, H / ih);
+    const [ax, ay] = f.anchor;
+    const fromX = (W - iw * cover) / 2 + ax * cover;
+    const fromY = (H - ih * cover) / 2 + ay * cover;
+    const s = cover * Math.pow(f.zoom, t);
+    const x = fromX + (f.at[0] * W - fromX) * t;
+    const y = fromY + (f.at[1] * H - fromY) * t;
+    c.drawImage(img, x - ax * s, y - ay * s, iw * s, ih * s);
+  }
+
+  // A planet photo on black: the camera starts with the whole planet framed in the portal and
+  // ends in close orbit, its tracked point gliding from the portal to `at` while it zooms.
+  function drawPlanetPhoto(c, f, img, t, W, H, rect) {
+    const sFar = f.far * rect.width / f.r;
+    const sNear = Math.max(f.near[0] * W, f.near[1] * H) / f.r;
+    const s = sFar * Math.pow(sNear / sFar, t);
+    const fromX = rect.left + rect.width / 2;
+    const fromY = rect.top + rect.height / 2 - sFar * f.top;
+    const x = fromX + (f.at[0] * W - fromX) * t;
+    const y = fromY + (f.at[1] * H - fromY) * t;
+    const cx = x, cy = y + s * f.top;
+    const radius = s * f.r;
+
+    c.save();
+    c.translate(cx, cy);
+    c.rotate((f.rotate || 0) * Math.PI / 180);
+    c.scale(s, s);
+    c.translate(-f.cx, -f.cy);
+    c.beginPath();
+    if (f.rings) {
+      // The globe hides the stars; rings are screened on so stars still show through the gaps.
+      c.ellipse(f.cx, f.cy, f.r, f.ry, 0, 0, Math.PI * 2);
+      c.fillStyle = '#020203';
+      c.fill();
+      c.beginPath();
+      c.ellipse(f.cx, f.cy, f.rings[0], f.rings[1], 0, 0, Math.PI * 2);
+      c.clip();
+      c.globalCompositeOperation = 'screen';
+    } else {
+      c.arc(f.cx, f.cy, f.r * 1.01, 0, Math.PI * 2);
+      c.clip();
+    }
+    c.drawImage(img, 0, 0);
+    c.restore();
+
+    // Atmosphere rim: peaks on the limb and is screened on, so it lights the photo's dark edge.
+    const outer = radius * 1.12;
+    const rim = c.createRadialGradient(cx, cy, 0, cx, cy, outer);
+    rim.addColorStop(0, `rgba(${f.glow},0)`);
+    rim.addColorStop(.95 / 1.12, `rgba(${f.glow},0)`);
+    rim.addColorStop(1 / 1.12, `rgba(${f.glow},${f.glowAlpha || .38})`);
+    rim.addColorStop(1, `rgba(${f.glow},0)`);
+    c.globalCompositeOperation = 'screen';
+    c.fillStyle = rim;
+    c.beginPath();
+    c.arc(cx, cy, outer, 0, Math.PI * 2);
+    c.arc(cx, cy, radius * .95, 0, Math.PI * 2, true);
+    c.fill();
+    c.globalCompositeOperation = 'source-over';
+  }
+
+  function renderFlight(c, key, t, p, rect) {
+    const f = approaches[key].flight;
+    const img = images.get(f.src);
+    const W = innerWidth, H = innerHeight;
+    c.save();
+    c.fillStyle = '#020203';
+    c.fillRect(0, 0, W, H);
+    if (f.frame) {
+      if (img) drawFramedPhoto(c, f, img, t, W, H);
+    } else {
+      drawStars(c, W, H, t, p);
+      if (img) drawPlanetPhoto(c, f, img, t, W, H, rect);
+    }
+    c.restore();
+  }
+
+  function renderPreview() {
+    if (!approaches[portalTarget].flight) return;
+    sizeCanvas(previewCanvas, previewCtx);
+    renderFlight(previewCtx, portalTarget, 0, 0, portalRect);
+    needsDraw = true;
+  }
+
+  function renderArrival(key) {
+    sizeCanvas(sceneCanvas, sceneCtx);
+    renderFlight(sceneCtx, key, 1, 1, portalRect);
+    sceneCanvas.classList.add('is-frozen');
+    frozen = true;
+    frozenFlight = key;
+    // Arrived before the photo did (slow network): redraw once it lands.
+    const { src } = approaches[key].flight;
+    if (!images.has(src)) loadImage(src).then(img => { if (img && frozenFlight === key) renderArrival(key); });
+  }
+
+  function freezeVideo(video) {
+    sizeCanvas(sceneCanvas, sceneCtx);
+    sceneCtx.fillStyle = '#030303';
+    sceneCtx.fillRect(0, 0, innerWidth, innerHeight);
+    drawCover(sceneCtx, video);
+    sceneCanvas.classList.add('is-frozen');
+    frozen = true;
+    frozenFlight = null;
+  }
+
+  // ---------- clips: what plays inside the portal while it swallows the screen ----------
+  function createClip(key) {
+    const { video, flight } = approaches[key];
+    return video ? videoClip(video) : flightClip(key, flight);
+  }
+
+  function waitForEnd(video) {
+    if (video.ended) return Promise.resolve();
+    return waitFor(video, ['ended', 'error'], 30000);
+  }
+
+  // Repaint when the playing clip presents a new frame (falls back to every frame without rVFC).
+  function watchFrames(video) {
+    if (!video.requestVideoFrameCallback) return false;
+    const onFrame = () => {
+      needsDraw = true;
+      if (!video.paused && !video.ended) video.requestVideoFrameCallback(onFrame);
+    };
+    video.requestVideoFrameCallback(onFrame);
+    return true;
+  }
+
+  function videoClip(src) {
+    const video = portalVideo;
+    let watching = false;
+    return {
+      done: false,
+      async load() {
+        if (video.src !== src) video.src = src;
+        if (video.readyState < 4) await waitFor(video, ['canplaythrough', 'error'], 1600);
+      },
+      async play() {
+        video.currentTime = 0;
+        video.playbackRate = 1.3;
+        await video.play();
+        watching = watchFrames(video);
+      },
+      ready: () => video.readyState >= 2,
+      update() { if (!watching) needsDraw = true; },
+      paint: context => paintMedia(context, video),
+      ended: () => waitForEnd(video),
+      freeze() {
+        freezeVideo(video);
+        this.done = true;
+      },
+      release() {
+        // On failure, rewind so the portal shows the first frame again.
+        if (!this.done) {
+          video.pause();
+          video.currentTime = 0;
+        }
+      }
+    };
+  }
+
+  function flightClip(key, flight) {
+    let start = 0, t = 0, p = 0, rect = null, finish;
+    const finished = new Promise(resolve => { finish = resolve; });
+    return {
+      done: false,
+      load: () => Promise.race([loadImage(flight.src), wait(4000)]),
+      play() {
+        rect = portalRect;
+        start = performance.now();
+      },
+      ready: () => start > 0,
+      update(now) {
+        if (!start) return;
+        p = Math.min(1, Math.max(0, now - start) / FLIGHT_MS);
+        t = ease(p);
+        needsDraw = true;
+        if (p === 1) finish();
+      },
+      paint: context => renderFlight(context, key, t, p, rect),
+      ended: () => finished,
+      freeze() {
+        renderArrival(key);
+        this.done = true;
+      },
+      release() {}
+    };
+  }
+
+  // ---------- reveals ----------
+  function revealMask() {
+    retrigger(experience, 'mask-revealing');
+    maskScale = 0;
+    return animateValue(v => { maskScale = v; }, 1050);
+  }
+
+  function revealPlanetContent() {
+    retrigger(experience, 'content-revealing');
+  }
+
+  // Jumping somewhere other than the portal's destination: close the window, swap, reopen.
+  async function retargetPortal(target) {
+    await animateValue(v => { maskScale = 1 - v; }, 380);
+    portalTarget = target;
+    updatePortal();
+    await Promise.race([preparePortal(), wait(2500)]);
+    retrigger(experience, 'mask-revealing');
+    await animateValue(v => { maskScale = v; }, 560);
+  }
+
+  // ---------- travel ----------
+  async function travel(target = states[current].next) {
+    if (busy || !states[target] || target === current) return;
+    busy = true;
+    targetX = targetY = 0;
+    cursor.classList.remove('is-enter', 'is-hover');
+    const clip = createClip(target);
+
+    try {
+      if (target !== portalTarget) await retargetPortal(target);
+
+      experience.classList.add('is-loading');
+      await clip.load();
+
+      // Title, facts and caption keep their revealed state so the chrome blur-out is visible;
+      // their reveal classes are reset at commit, while the chrome is hidden.
+      experience.classList.remove('is-loading');
+      experience.classList.add('is-transitioning');
+      canvasOpacity = 1;
+      activeClip = clip;
+      transitionActive = true;
+      await clip.play();
+
+      await animateValue(v => { expansion = v; }, 1100);
+      await clip.ended();
+      clip.freeze();
+
+      current = target;
+      experience.classList.remove('content-revealing', 'mask-revealing');
+      experience.classList.add('is-committing');
+      render();
+      preparePortal();
+      await nextFrame();
+      await nextFrame();
+
+      transitionActive = false;
+      activeClip = null;
+      expansion = 0;
+      maskScale = 0;
+      canvasOpacity = 1;
+      experience.classList.remove('is-transitioning', 'is-committing');
+
+      const maskReveal = revealMask();
+      setTimeout(revealPlanetContent, 100);
+      await maskReveal;
+
+      await wait(450);
+      clip.release();
+      busy = false;
+      cursor.classList.toggle('is-enter', portal.matches(':hover'));
+    } catch (err) {
+      clip.release();
+      transitionActive = false;
+      activeClip = null;
+      expansion = 0;
+      maskScale = 1;
+      canvasOpacity = 1;
+      experience.classList.remove('is-loading', 'is-transitioning', 'is-committing');
+      experience.classList.add('mask-revealing', 'content-revealing');
+      busy = false;
+    }
+  }
+
+  // ---------- intro ----------
+  async function startExperience() {
+    portalVideo.preload = 'auto';
+    if (portalVideo.readyState === 0 && portalVideo.hasAttribute('src')) portalVideo.load();
+    await preparePortal();
+    await revealMask();
+    document.body.classList.add('intro-ready');
+    setTimeout(() => {
+      revealPlanetContent();
+      busy = false;
+    }, 850);
+  }
+
+  function runPreloader() {
+    const video = preloaderVideo;
+    let finished = false;
+    let raf = 0;
+
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      cancelAnimationFrame(raf);
+      clearTimeout(safety);
+      preloaderValue.textContent = '100';
+      preloaderCount.classList.add('is-leaving');
+      logo.classList.add('is-docked');
+      preloader.classList.add('is-background');
+      document.body.classList.add('preload-complete');
+      startExperience();
+      setTimeout(() => preloaderCount.remove(), 750);
+      setTimeout(() => logo.classList.add('is-settled'), 2000);
+    };
+
+    // Never strand the visitor on the loader if the clip cannot start.
+    const safety = setTimeout(finish, 12000);
+
+    const tick = () => {
+      if (finished) return;
+      const duration = video.duration;
+      if (duration && isFinite(duration)) {
+        preloaderValue.textContent = String(Math.min(100, Math.round(video.currentTime / duration * 100)));
+      }
+      raf = requestAnimationFrame(tick);
+    };
+
+    const start = () => {
+      try {
+        video.playbackRate = Math.min(16, Math.max(.25, video.duration / 3));
+      } catch (err) { /* keep the default rate */ }
+      const playing = video.play();
+      if (playing) playing.catch(finish);
+      raf = requestAnimationFrame(tick);
+    };
+
+    video.addEventListener('playing', () => clearTimeout(safety), { once: true });
+    video.addEventListener('ended', finish, { once: true });
+    video.addEventListener('error', finish, { once: true });
+    if (video.error) finish();
+    else if (video.readyState >= 1) start();
+    else video.addEventListener('loadedmetadata', start, { once: true });
+  }
+
+  // ---------- pointer & cursor ----------
+  addEventListener('pointermove', event => {
+    if (event.pointerType === 'touch') return;
+    pointerX = event.clientX;
+    pointerY = event.clientY;
+    if (!cursorSeen) {
+      cursorSeen = true;
+      cursorX = pointerX;
+      cursorY = pointerY;
+    }
+    cursor.classList.add('is-visible');
+    if (busy) return;
+    targetY = (event.clientX / innerWidth - .5) * 37.4;
+    targetX = (event.clientY / innerHeight - .5) * -33;
+  }, { passive: true });
+
+  document.documentElement.addEventListener('pointerleave', () => { targetX = targetY = 0; });
+  document.documentElement.addEventListener('mouseleave', () => cursor.classList.remove('is-visible'));
+
+  function cursorLoop() {
+    requestAnimationFrame(cursorLoop);
+    const dx = pointerX - cursorX, dy = pointerY - cursorY;
+    if (Math.abs(dx) < .05 && Math.abs(dy) < .05) return;
+    cursorX += dx * .2;
+    cursorY += dy * .2;
+    cursor.style.transform = `translate3d(${cursorX.toFixed(2)}px,${cursorY.toFixed(2)}px,0)`;
+  }
+
+  portal.addEventListener('pointerenter', () => cursor.classList.add('is-enter'));
+  portal.addEventListener('pointerleave', () => cursor.classList.remove('is-enter'));
+  portal.addEventListener('click', () => travel());
+
+  planetList.addEventListener('click', event => {
+    const item = event.target.closest('.planet-item');
+    if (item) travel(item.dataset.planet);
+  });
+  planetList.addEventListener('pointerover', event => {
+    cursor.classList.toggle('is-hover', Boolean(event.target.closest('.planet-item:not(.active)')));
+  });
+  planetList.addEventListener('pointerleave', () => cursor.classList.remove('is-hover'));
+
+  ['loadeddata', 'seeked', 'emptied'].forEach(type => portalVideo.addEventListener(type, () => { needsDraw = true; }));
+  new ResizeObserver(measurePortal).observe(document.querySelector('.portal-wrap'));
+
+  addEventListener('resize', () => {
+    resizeCanvas();
+    if (frozenFlight) renderArrival(frozenFlight);
+    renderPreview();
+    fitTitle();
+  });
+  if (document.fonts) {
+    document.fonts.addEventListener('loadingdone', fitTitle);
+    document.fonts.ready.then(fitTitle);
+  }
+
+  // ---------- boot ----------
+  backgrounds.forEach(video => { video.pause(); video.currentTime = 0; });
+  resizeCanvas();
+  render();
+  requestAnimationFrame(draw);
+  requestAnimationFrame(cursorLoop);
+  runPreloader();
+})();
+</script>
+</body>
+</html>
